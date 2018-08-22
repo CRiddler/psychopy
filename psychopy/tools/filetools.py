@@ -241,3 +241,24 @@ class DictStorage(dict):
             self.save()
         self._deleted = True
 
+def path_to_string(filepath):
+    """
+    Coerces pathlib Path objects to a string (python version 3.6+)
+    any other objects passed to this function will be returned as is.
+    This WILL NOT work with on Python 3.4, 3.5 since psychopy does
+    not support these versions of python.
+
+    :Parameters:
+
+    filepath : string or pathlib Path object
+        file system path that needs to be coerced into a string to
+        use by Psychopy's internals
+
+    :Returns:
+
+    filepath : string
+        file system path coerced into a string type
+    """
+    if hasattr(filepath, '__fspath__'):
+        return filepath.__fspath__()
+    return filepath
