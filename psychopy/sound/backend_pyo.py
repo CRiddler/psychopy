@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 # Part of the PsychoPy library
-# Copyright (C) 2015 Jonathan Peirce
+# Copyright (C) 2018 Jonathan Peirce
 # Distributed under the terms of the GNU General Public License (GPL).
 
 from __future__ import absolute_import, division, print_function
@@ -112,7 +112,8 @@ def getDevices(kind=None):
     devs = {}
     for ii in allDevs:  # in pyo this is a dict but keys are ii ! :-/
         dev = allDevs[ii]
-        devName = dev['name']
+        # newline characters must be removed
+        devName = dev['name'].replace('\r\n','')
         devs[devName] = dev
         dev['id'] = ii
     return devs

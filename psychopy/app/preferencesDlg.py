@@ -39,6 +39,7 @@ _localized = {
     'paths': _translate('paths'),
     'audioLib': _translate("audio library"),
     'audioDriver': _translate("audio driver"),
+    'audioDevice': _translate("audio device"),
     'flac': _translate('flac audio compression'),
     'parallelPorts': _translate("parallel ports"),
     'shutdownKey': _translate("shutdown key"),
@@ -122,6 +123,8 @@ _localized = {
     'smallerRoutine': _translate('smaller routine'),
     'toggleReadme': _translate('toggle readme'),
     'projectsLogIn': _translate('login to projects'),
+    'pavlovia_logIn': _translate('login to pavlovia'),
+    'OSF_logIn': _translate('login to OSF'),
     'projectsSync': _translate('sync projects'),
     'projectsFind': _translate('find projects'),
     'projectsOpen': _translate('open projects'),
@@ -202,12 +205,6 @@ class PreferencesDlg(wx.Dialog):
         btn.SetHelpText(_translate("Cancel any changes (to any panel)"))
         btn.Bind(wx.EVT_BUTTON, self.onCancel)
         btnsizer.AddButton(btn)
-        # apply
-        btn = wx.Button(self, wx.ID_APPLY, _translate('Apply'))
-        btn.SetHelpText(_translate("Apply these prefs (in all sections) and "
-                                   "continue"))
-        btn.Bind(wx.EVT_BUTTON, self.onApply)
-        btnsizer.AddButton(btn)
         # help
         btn = wx.Button(self, wx.ID_HELP, _translate('Help'))
         btn.SetHelpText(_translate("Get help on prefs"))
@@ -234,16 +231,12 @@ class PreferencesDlg(wx.Dialog):
             url = self.app.urls["prefs"]
         self.app.followLink(url=url)
 
-    def onApply(self, event=None):
-        self.setPrefsFromCtrls()
-        self.app.prefs.pageCurrent = self.nb.GetSelection()
-        # don't set locale here; need to restart app anyway
-
     def onCancel(self, event=None):
         self.Destroy()
 
     def onOK(self, event=None):
-        self.onApply(event=event)
+        self.setPrefsFromCtrls()
+        self.app.prefs.pageCurrent = self.nb.GetSelection()
         self.Destroy()
 
     def makePrefPage(self, parent, sectionName, prefsSection, specSection):
@@ -279,7 +272,8 @@ class PreferencesDlg(wx.Dialog):
 
             # create the actual controls
             self.ctrls[ctrlName] = ctrls = PrefCtrls(
-                parent=panel, name=pLabel, value=thisPref, spec=thisSpec)
+                parent=panel, name=prefName, value=thisPref,
+                spec=thisSpec, plabel=pLabel)
             ctrlSizer = wx.BoxSizer(wx.HORIZONTAL)
             ctrlSizer.Add(ctrls.nameCtrl, 0, wx.ALL, 5)
             ctrlSizer.Add(ctrls.valueCtrl, 0, wx.ALL, 5)
@@ -365,7 +359,7 @@ class PreferencesDlg(wx.Dialog):
 
 class PrefCtrls(object):
 
-    def __init__(self, parent, name, value, spec):
+    def __init__(self, parent, name, value, spec, plabel):
         """Create a set of ctrls for a particular preference entry
         """
         super(PrefCtrls, self).__init__()
@@ -377,7 +371,7 @@ class PrefCtrls(object):
         self.nameCtrl = self.valueCtrl = None
 
         _style = wx.ALIGN_RIGHT | wx.ALIGN_CENTER_VERTICAL
-        self.nameCtrl = wx.StaticText(self.parent, -1, name,
+        self.nameCtrl = wx.StaticText(self.parent, -1, plabel,
                                       size=(labelWidth, -1), style=_style)
         if type(value) == bool:
             # only True or False - use a checkbox
@@ -393,7 +387,8 @@ class PrefCtrls(object):
                     devices = sounddevice.query_devices()
                     for device in devices:
                         if device['max_output_channels'] > 0:
-                            thisDevName = device['name']
+                            # newline characters must be removed
+                            thisDevName = device['name'].replace('\r\n','')
                             if thisDevName not in options:
                                 options.append(thisDevName)
                 except (ValueError, OSError, ImportError):

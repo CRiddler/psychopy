@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 # Part of the PsychoPy library
-# Copyright (C) 2015 Jonathan Peirce
+# Copyright (C) 2018 Jonathan Peirce
 # Distributed under the terms of the GNU General Public License (GPL).
 
 """Audio capture and analysis using pyo"""
@@ -925,7 +925,7 @@ class Speech2Text(object):
         # http://thejosephturner.com/blog/2011/03/19/https-certificate-verification-in-python-with-urllib2/
         # set up the https request:
         url = 'https://' + host + '?xjerr=1&' +\
-              'client=psychopy2&' +\
+              'client=psychopy3&' +\
               'lang=' + lang + '&'\
               'pfilter=%d' % pro_filter + '&'\
               'maxresults=%d' % results

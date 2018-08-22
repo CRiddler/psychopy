@@ -5,7 +5,7 @@
 """
 
 # Part of the PsychoPy library
-# Copyright (C) 2015 Jonathan Peirce
+# Copyright (C) 2018 Jonathan Peirce
 # Distributed under the terms of the GNU General Public License (GPL).
 
 from __future__ import absolute_import, division, print_function
@@ -302,6 +302,8 @@ def setColor(obj, color, colorSpace=None, operation='',
         setattr(obj, rgbAttrib, colors.lms2rgb(newColor, lms_rgb))
     elif colorSpace == 'hsv':
         setattr(obj, rgbAttrib, colors.hsv2rgb(np.asarray(newColor)))
+    elif colorSpace is None:
+        pass  # probably using named colors?
     else:
         logging.error('Unknown colorSpace: %s' % colorSpace)
     # store name of colorSpace for future ref and for drawing

@@ -18,6 +18,9 @@ import wx
 import wx.stc
 import wx.richtext
 from wx.html import HtmlEasyPrinting
+
+import psychopy.app.pavlovia_ui.menu
+
 try:
     from wx import aui
 except Exception:
@@ -37,11 +40,12 @@ import locale
 
 from . import psychoParser
 from .. import stdOutRich, dialogs
-from .. import projects
+from .. import pavlovia_ui
 from psychopy import logging
 from psychopy.localization import _translate
 from ..utils import FileDropTarget
 from psychopy.constants import PY3
+from psychopy.projects import pavlovia
 
 # advanced prefs (not set in prefs files)
 prefTestSubset = ""
@@ -480,7 +484,10 @@ class UnitTestFrame(wx.Frame):
         # "C:\Program Files\wxPython2.8 Docs and Demos\samples\hangman\hangman.py"
         tmpFilename, tmpLineNumber = evt.GetString().rsplit('", line ', 1)
         filename = tmpFilename.split('File "', 1)[1]
-        lineNumber = int(tmpLineNumber.split(',')[0])
+        try:
+            lineNumber = int(tmpLineNumber.split(',')[0])
+        except ValueError:
+            lineNumber = int(tmpLineNumber.split()[0])
         self.app.coder.gotoLine(filename, lineNumber)
 
     def onCloseTests(self, evt):
@@ -792,8 +799,8 @@ class CodeEditor(wx.stc.StyledTextCtrl):
         # calculate how much we need to increment/decrement the current lines
         incr = prevIndent - startLineIndent
         # check for a colon to signal an indent decrease
-        prevLogical = string.split(prevLine, '#')[0]
-        prevLogical = string.strip(prevLogical)
+        prevLogical = prevLine.split('#')[0]
+        prevLogical = prevLogical.strip()
         if len(prevLogical) > 0 and prevLogical[-1] == ':':
             incr = incr + 4
 
@@ -1360,7 +1367,7 @@ class CodeEditor(wx.stc.StyledTextCtrl):
 class CoderFrame(wx.Frame):
 
     def __init__(self, parent, ID, title, files=(), app=None):
-        self.app = app
+        self.app = app  # type: PsychoPyApp
         self.frameType = 'coder'
         # things the user doesn't set like winsize etc
         self.appData = self.app.prefs.appData['coder']
@@ -1373,6 +1380,7 @@ class CoderFrame(wx.Frame):
         self.fileStatusLastChecked = time.time()
         self.fileStatusCheckInterval = 5 * 60  # sec
         self.showingReloadDialog = False
+        self.btnHandles = {}  # stores toolbar buttons so they can be altered
 
         # we didn't have the key or the win was minimized/invalid
         if self.appData['winH'] == 0 or self.appData['winW'] == 0:
@@ -1490,9 +1498,11 @@ class CoderFrame(wx.Frame):
             self, style=_style,
             font=self.prefs['outputFont'],
             fontSize=self.prefs['outputFontSize'])
-        self.outputWindow.write(_translate('Welcome to PsychoPy2!') + '\n')
+        self.outputWindow.write(_translate('Welcome to PsychoPy3!') + '\n')
         self.outputWindow.write("v%s\n" % self.app.version)
         self.shelf.AddPage(self.outputWindow, _translate('Output'))
+        if self.app._appLoaded:
+            self.setOutputWindow()
 
         if haveCode:
             useDefaultShell = True
@@ -1858,8 +1868,8 @@ class CoderFrame(wx.Frame):
             self.Bind(wx.EVT_MENU, self.loadDemo, id=thisID)
 
         # ---_projects---#000000#FFFFFF---------------------------------------
-        self.projectsMenu = projects.ProjectsMenu(parent=self)
-        menuBar.Append(self.projectsMenu, _translate("P&rojects"))
+        self.pavloviaMenu = psychopy.app.pavlovia_ui.menu.PavloviaMenu(parent=self)
+        menuBar.Append(self.pavloviaMenu, _translate("Pavlovia.org"))
 
         # ---_help---#000000#FFFFFF-------------------------------------------
         self.helpMenu = wx.Menu()
@@ -1900,7 +1910,7 @@ class CoderFrame(wx.Frame):
                 toolbarSize = 16
         else:
             # mac: 16 either doesn't work, or looks really bad with wx3
-            toolbarSize = 128
+            toolbarSize = 32
 
         self.toolbar.SetToolBitmapSize((toolbarSize, toolbarSize))
         rc = self.paths['resources']
@@ -1957,7 +1967,7 @@ class CoderFrame(wx.Frame):
                          key.replace('Ctrl+', ctrlKey),
                          _translate("Redo last action")).GetId()
         tb.Bind(wx.EVT_TOOL, self.redo, id=self.IDs.cdrBtRedo)
-        tb.AddSeparator()
+
         tb.AddSeparator()
         item = tb.AddSimpleTool(wx.ID_ANY, preferencesBmp,
                          _translate("Preferences"),
@@ -1971,7 +1981,7 @@ class CoderFrame(wx.Frame):
                          _translate("Color Picker -> clipboard"),
                          _translate("Color Picker -> clipboard"))
         tb.Bind(wx.EVT_TOOL, self.app.colorPicker, id=item.GetId())
-        self.toolbar.AddSeparator()
+
         self.toolbar.AddSeparator()
         key = _translate("Run [%s]") % self.app.keys['runScript']
         self.IDs.cdrBtnRun = self.toolbar.AddSimpleTool(wx.ID_ANY, runBmp,
@@ -1984,6 +1994,12 @@ class CoderFrame(wx.Frame):
                                    _translate("Stop current script")).GetId()
         tb.Bind(wx.EVT_TOOL, self.stopFile, id=self.IDs.cdrBtnStop)
         tb.EnableTool(self.IDs.cdrBtnStop, False)
+
+        self.toolbar.AddSeparator()
+        pavButtons = pavlovia_ui.toolbar.PavloviaButtons(self, toolbar=tb, tbSize=size)
+        pavButtons.addPavloviaTools(buttons=['pavloviaSync', 'pavloviaSearch', 'pavloviaUser', ])
+        self.btnHandles.update(pavButtons.btnHandles)
+
         tb.Realize()
 
     def onIdle(self, event):
@@ -2646,7 +2662,7 @@ class CoderFrame(wx.Frame):
 
         # check syntax by compiling - errors printed (not raised as error)
         try:
-            if type(fullPath) == bytes:
+            if not PY3 or type(fullPath) == bytes:
                 # py_compile.compile doesn't accept Unicode filename.
                 py_compile.compile(fullPath.encode(
                     sys.getfilesystemencoding()), doraise=False)
@@ -2885,17 +2901,30 @@ class CoderFrame(wx.Frame):
         # "C:\Program Files\wxPython2.8 Docs and Demos\samples\hangman\hangman.py"
         tmpFilename, tmpLineNumber = evt.GetString().rsplit('", line ', 1)
         filename = tmpFilename.split('File "', 1)[1]
-        if PY3:
-            lineNumber = int(tmpLineNumber.split()[0])
-        else:
+        try:
             lineNumber = int(tmpLineNumber.split(',')[0])
+        except ValueError:
+            lineNumber = int(tmpLineNumber.split()[0])
         self.gotoLine(filename, lineNumber)
 
     def onUnitTests(self, evt=None):
-        """Show the unit tests frame
-        """
+        """Show the unit tests frame"""
         if self.unitTestFrame:
             self.unitTestFrame.Raise()
         else:
             self.unitTestFrame = UnitTestFrame(app=self.app)
         # UnitTestFrame.Show()
+
+    def onPavloviaSync(self, evt=None):
+        """Push changes to project repo, or create new proj if proj is None"""
+        self.project = pavlovia.getProject(self.currentDoc.filename)
+        self.fileSave(self.currentDoc.filename)  # Must save on sync else changes not pushed
+        pavlovia_ui.syncProject(parent=self, project=self.project)
+
+    def onPavloviaRun(self, evt=None):
+        # TODO: Allow user to run project from coder
+        pass
+
+    def setPavloviaUser(self, user):
+        # TODO: update user icon on button to user avatar
+        pass
